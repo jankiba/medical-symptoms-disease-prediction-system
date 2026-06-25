@@ -26,10 +26,22 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "ml", "model.joblib")
 SYMPTOMS_PATH = os.path.join(BASE_DIR, "ml", "symptoms.json")
 
-model = joblib.load(MODEL_PATH)
+# Lazy load model and symptoms to save memory
+_model = None
+_all_symptoms = None
 
-with open(SYMPTOMS_PATH, "r") as f:
-    all_symptoms = json.load(f)
+def get_model():
+    global _model
+    if _model is None:
+        _model = joblib.load(MODEL_PATH)
+    return _model
+
+def get_symptoms_list():
+    global _all_symptoms
+    if _all_symptoms is None:
+        with open(SYMPTOMS_PATH, "r") as f:
+            _all_symptoms = json.load(f)
+    return _all_symptoms
 
 otp_store = {}
 reset_otp_store = {}
@@ -278,7 +290,6 @@ def reset_password(request):
 
     user.set_password(password)
     user.save()
-
     del reset_otp_store[email]
 
     return Response({"message": "Password reset successfully. You can now login."})
@@ -287,7 +298,7 @@ def reset_password(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def get_symptoms(request):
-    return Response(all_symptoms)
+    return Response(get_symptoms_list())
 
 
 @api_view(["POST"])
@@ -298,7 +309,7 @@ def extract_symptoms(request):
     if not text:
         return Response({"error": "No text provided."}, status=400)
 
-    result = extract_symptoms_with_biobert(text, all_symptoms)
+    result = extract_symptoms_with_biobert(text, get_symptoms_list())
 
     if result["error"]:
         return Response({"error": result["error"]}, status=503)
@@ -359,12 +370,15 @@ def predict_disease(request):
         return Response(response_data, status=201)
 
     # ML model prediction
-    input_vector = [1 if sym in cleaned_symptoms else 0 for sym in all_symptoms]
-    input_df = pd.DataFrame([input_vector], columns=all_symptoms)
+    current_model = get_model()
+    current_symptoms = get_symptoms_list()
 
-    prediction = model.predict(input_df)[0]
-    probabilities = model.predict_proba(input_df)[0]
-    classes = model.classes_
+    input_vector = [1 if sym in cleaned_symptoms else 0 for sym in current_symptoms]
+    input_df = pd.DataFrame([input_vector], columns=current_symptoms)
+
+    prediction = current_model.predict(input_df)[0]
+    probabilities = current_model.predict_proba(input_df)[0]
+    classes = current_model.classes_
 
     prob_index = np.where(classes == prediction)[0][0]
     confidence_score = float(probabilities[prob_index] * 100)
