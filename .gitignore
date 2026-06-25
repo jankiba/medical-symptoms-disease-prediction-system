@@ -3,3 +3,4 @@ venv/
 *.dylib
 .env
 backend/.env
+backend/predictor/ml/model.joblib
