@@ -57,11 +57,23 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.getenv('DATABASE_URL', 'postgresql://janki:janki123@localhost:5432/medical_db')
-    )
-}
+DATABASE_URL = os.getenv('DATABASE_URL')
+
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.config(default=DATABASE_URL)
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': 'medical_db',
+            'USER': 'janki',
+            'PASSWORD': 'janki123',
+            'HOST': 'localhost',
+            'PORT': '5432',
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},

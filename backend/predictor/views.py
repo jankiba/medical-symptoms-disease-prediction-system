@@ -31,9 +31,14 @@ model = joblib.load(MODEL_PATH)
 with open(SYMPTOMS_PATH, "r") as f:
     all_symptoms = json.load(f)
 
-
 otp_store = {}
 reset_otp_store = {}
+
+PANIC_ATTACK_SYMPTOMS = [
+    "palpitations", "chest pain", "breathlessness", "sweating",
+    "shivering", "dizziness", "chills", "nausea", "drying and tingling lips",
+    "anxiety", "stomach pain"
+]
 
 
 def generate_otp():
@@ -251,11 +256,6 @@ def reset_password(request):
     otp = request.data.get("otp", "").strip()
     password = request.data.get("password", "").strip()
 
-    print("RESET API CALLED")
-    print("EMAIL:", email)
-    print("OTP:", otp)
-    print("PASSWORD:", password)
-
     if not email or not otp or not password:
         return Response({"error": "Email, OTP and new password are required."}, status=400)
 
@@ -276,16 +276,13 @@ def reset_password(request):
     except User.DoesNotExist:
         return Response({"error": "User not found."}, status=404)
 
-    print("USER FOUND:", user.username)
-
     user.set_password(password)
     user.save()
-
-    print("PASSWORD UPDATED SUCCESSFULLY")
 
     del reset_otp_store[email]
 
     return Response({"message": "Password reset successfully. You can now login."})
+
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
@@ -326,6 +323,42 @@ def predict_disease(request):
 
     cleaned_symptoms = [clean_symptom(s) for s in selected_symptoms]
 
+    # Panic attack rule-based override
+    panic_matches = [s for s in cleaned_symptoms if s in PANIC_ATTACK_SYMPTOMS]
+
+    if len(panic_matches) >= 5:
+        prediction = "Panic Attack"
+        confidence_score = round((len(panic_matches) / len(PANIC_ATTACK_SYMPTOMS)) * 100, 1)
+        top_predictions = [{"disease": "Panic Attack", "confidence": confidence_score}]
+        details = {
+            "specialist": "Psychiatrist",
+            "description": "A panic attack is a sudden episode of intense fear that triggers severe physical reactions when there is no real danger or apparent cause. Panic attacks can be very frightening and cause rapid heartbeat, sweating, trembling and shortness of breath.",
+            "precautions": [
+                "Practice deep breathing exercises",
+                "Consult a mental health professional",
+                "Avoid caffeine and alcohol",
+                "Practice mindfulness and meditation"
+            ]
+        }
+        severity = calculate_severity(selected_symptoms)
+
+        history = PredictionHistory.objects.create(
+            patient_name=patient_name,
+            symptoms=", ".join(selected_symptoms),
+            predicted_disease=prediction,
+            confidence_score=confidence_score,
+            specialist=details["specialist"],
+            description=details["description"],
+            precautions=", ".join(details["precautions"])
+        )
+
+        serializer = PredictionHistorySerializer(history)
+        response_data = serializer.data
+        response_data["top_predictions"] = top_predictions
+        response_data.update(severity)
+        return Response(response_data, status=201)
+
+    # ML model prediction
     input_vector = [1 if sym in cleaned_symptoms else 0 for sym in all_symptoms]
     input_df = pd.DataFrame([input_vector], columns=all_symptoms)
 
