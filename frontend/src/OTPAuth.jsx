@@ -2,7 +2,7 @@ import { useState } from "react";
 import { loginUser } from "./api";
 import axios from "axios";
 
-const API = axios.create({ baseURL: "http://127.0.0.1:8000/api/" });
+const API = axios.create({ baseURL: import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api/" });
 
 function OTPAuth({ onLogin }) {
     const [mode, setMode] = useState("login");
