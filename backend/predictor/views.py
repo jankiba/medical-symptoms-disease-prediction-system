@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 
-from django.core.mail import send_mail
 from django.contrib.auth.models import User
 
 from rest_framework.decorators import api_view, permission_classes
@@ -20,13 +19,13 @@ from .models import PredictionHistory
 from .serializers import PredictionHistorySerializer
 from .utils import get_disease_details, calculate_severity
 from .biobert_extract import extract_symptoms_with_biobert
+from .email_service import send_otp_email
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "ml", "model.joblib")
 SYMPTOMS_PATH = os.path.join(BASE_DIR, "ml", "symptoms.json")
 
-# Lazy load model and symptoms to save memory
 _model = None
 _all_symptoms = None
 
@@ -87,13 +86,7 @@ def register_user(request):
     }
 
     try:
-        send_mail(
-            subject="Verify your Medical Prediction System account",
-            message=f"Hello {username},\n\nYour OTP is: {otp}\n\nValid for 10 minutes.",
-            from_email=os.getenv("EMAIL_HOST_USER"),
-            recipient_list=[email],
-            fail_silently=False
-        )
+        send_otp_email(email, username, otp)
     except Exception as e:
         return Response({"error": f"Failed to send email: {str(e)}"}, status=500)
 
@@ -154,12 +147,12 @@ def resend_otp(request):
     otp_store[email]["expires_at"] = datetime.now() + timedelta(minutes=10)
 
     try:
-        send_mail(
+        send_otp_email(
+            email,
+            stored['username'],
+            otp,
             subject="Your new OTP - Medical Prediction System",
-            message=f"Hello {stored['username']},\n\nYour new OTP is: {otp}\n\nValid for 10 minutes.",
-            from_email=os.getenv("EMAIL_HOST_USER"),
-            recipient_list=[email],
-            fail_silently=False
+            message=f"Hello {stored['username']},\n\nYour new OTP is: {otp}\n\nValid for 10 minutes."
         )
     except Exception as e:
         return Response({"error": f"Failed to send email: {str(e)}"}, status=500)
@@ -189,12 +182,12 @@ def forgot_password(request):
     }
 
     try:
-        send_mail(
+        send_otp_email(
+            email,
+            user.username,
+            otp,
             subject="Reset your password - Medical Prediction System",
-            message=f"Hello {user.username},\n\nYour password reset OTP is: {otp}\n\nValid for 10 minutes.",
-            from_email=os.getenv("EMAIL_HOST_USER"),
-            recipient_list=[email],
-            fail_silently=False
+            message=f"Hello {user.username},\n\nYour password reset OTP is: {otp}\n\nValid for 10 minutes."
         )
     except Exception as e:
         return Response({"error": f"Failed to send email: {str(e)}"}, status=500)
@@ -248,12 +241,12 @@ def resend_reset_otp(request):
     }
 
     try:
-        send_mail(
+        send_otp_email(
+            email,
+            user.username,
+            otp,
             subject="New password reset OTP - Medical Prediction System",
-            message=f"Hello {user.username},\n\nYour new password reset OTP is: {otp}\n\nValid for 10 minutes.",
-            from_email=os.getenv("EMAIL_HOST_USER"),
-            recipient_list=[email],
-            fail_silently=False
+            message=f"Hello {user.username},\n\nYour new password reset OTP is: {otp}\n\nValid for 10 minutes."
         )
     except Exception as e:
         return Response({"error": f"Failed to send email: {str(e)}"}, status=500)
@@ -334,7 +327,6 @@ def predict_disease(request):
 
     cleaned_symptoms = [clean_symptom(s) for s in selected_symptoms]
 
-    # Panic attack rule-based override
     panic_matches = [s for s in cleaned_symptoms if s in PANIC_ATTACK_SYMPTOMS]
 
     if len(panic_matches) >= 5:
@@ -343,7 +335,7 @@ def predict_disease(request):
         top_predictions = [{"disease": "Panic Attack", "confidence": confidence_score}]
         details = {
             "specialist": "Psychiatrist",
-            "description": "A panic attack is a sudden episode of intense fear that triggers severe physical reactions when there is no real danger or apparent cause. Panic attacks can be very frightening and cause rapid heartbeat, sweating, trembling and shortness of breath.",
+            "description": "A panic attack is a sudden episode of intense fear that triggers severe physical reactions when there is no real danger or apparent cause.",
             "precautions": [
                 "Practice deep breathing exercises",
                 "Consult a mental health professional",
@@ -369,7 +361,6 @@ def predict_disease(request):
         response_data.update(severity)
         return Response(response_data, status=201)
 
-    # ML model prediction
     current_model = get_model()
     current_symptoms = get_symptoms_list()
 
