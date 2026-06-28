@@ -32,6 +32,8 @@ _all_symptoms = None
 def get_model():
     global _model
     if _model is None:
+        import gc
+        gc.collect()
         _model = joblib.load(MODEL_PATH)
     return _model
 

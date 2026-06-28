@@ -119,7 +119,7 @@ def train_model():
     print("\nClassification Report:")
     print(classification_report(y_test, y_pred))
 
-    joblib.dump(model, MODEL_PATH)
+    joblib.dump(model, MODEL_PATH, compress=3)
 
     with open(SYMPTOMS_PATH, "w") as f:
         json.dump(all_symptoms, f, indent=4)
