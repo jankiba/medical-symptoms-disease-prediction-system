@@ -4,12 +4,12 @@ django-cors-headers==4.9.0
 djangorestframework==3.16.1
 djangorestframework-simplejwt==5.3.1
 joblib==1.5.3
-pandas==1.5.3
+pandas==2.2.2
 python-dateutil==2.9.0.post0
 pytz==2024.1
 numpy==2.0.2
 scikit-learn==1.6.1
-scipy==1.11.4
+scipy==1.13.0
 six==1.17.0
 sqlparse==0.5.5
 threadpoolctl==3.6.0
