@@ -33,13 +33,30 @@ def get_model():
     global _model
     if _model is None:
         import gc
+        import urllib.request
         gc.collect()
+        
+        if not os.path.exists(MODEL_PATH):
+            print("Downloading model from Hugging Face...")
+            urllib.request.urlretrieve(
+                "https://huggingface.co/janki11/medical-disease-predictor/resolve/main/model.joblib",
+                MODEL_PATH
+            )
+            print("Model downloaded successfully!")
+        
         _model = joblib.load(MODEL_PATH)
     return _model
 
 def get_symptoms_list():
     global _all_symptoms
     if _all_symptoms is None:
+        if not os.path.exists(SYMPTOMS_PATH):
+            import urllib.request
+            print("Downloading symptoms from Hugging Face...")
+            urllib.request.urlretrieve(
+                "https://huggingface.co/janki11/medical-disease-predictor/resolve/main/symptoms.json",
+                SYMPTOMS_PATH
+            )
         with open(SYMPTOMS_PATH, "r") as f:
             _all_symptoms = json.load(f)
     return _all_symptoms
